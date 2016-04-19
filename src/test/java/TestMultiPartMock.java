@@ -3,7 +3,12 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,6 +17,7 @@ import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
+import com.oreilly.servlet.MultipartRequest;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -94,7 +100,7 @@ public class TestMultiPartMock {
 		
 		assertThat(line, is("-----------------------------3274614561247"));
 	}
-	//@ 테스트 중
+
 	@Test
 	public void ServletInputStream_Wrapper_만들어주기() throws IOException{
 		String paramStr = "-----------------------------3274614561247\r\n"
@@ -123,14 +129,63 @@ public class TestMultiPartMock {
 		Map<String, String> params = makeReqeust(mockReq, boundary);
 		
 		assertThat(params.get("record_id"), is("123"));
-		assertThat(params.get("contents"), is("안녕하세요\r\n강현구입니다.\r\n\r\n"));
+		assertThat(params.get("contents"), is("안녕하세요\n강현구입니다.\n"));
 		assertThat(params.get("record_id"), is("123"));
 		assertThat(params.get("record_id"), is("123"));
 	}
-	//@todo : 파라미터값 하나 만들어 주기
+    
+    @Test
+    public void 이미지_파일경로_찾기(){
+        String rootPath = System.getProperty("user.dir");
+        assertThat(rootPath, is("C:\\Users\\khk\\IdeaProjects\\MockServeletInputStream"));
+
+        String path = rootPath + File.separator +"img" + File.separator + "1.jpg";
+        assertThat(path, is("C:\\Users\\khk\\IdeaProjects\\MockServeletInputStream\\img\\1.jpg"));
+    }
+
+
+    //@todo : servletInputStream read 메서드 구현하기
+    //servletInputStream read는 buffer 에 시작점 부터 끝점까지 담아줌
+    @Test
+    public void servletInputStream_read_메서드_구현하기(){
+        byte[] bytes = new byte[] { 1,2,3,4,5,6,7,8,9,10,11,12,13,14 };
+        ServletInputStream i = new MockServletInputStream(bytes);
+        byte[] buf = new byte[5];
+        try {
+            i.read(buf,0,buf.length);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        assertThat(buf, is(new byte[]{1,2,3,4,5}));
+    }
+    
+
+
+
+	//@todo : 파일 값을 담은 파라미터값 하나 만들어 주기
 	@Test
-	public void 파라미터값_하나_만들어_주기(){
-		
+	public void 파일_값을_담은_파라미터값_하나_만들어_주기(){
+        String rootPath = System.getProperty("user.dir");
+        String path = rootPath + File.separator +"img" + File.separator + "1.jpg";
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
+        String frontStr = "-----------------------------3274614561247\r\n"
+                + "Content-Disposition: form-data; name=\"file01\"; filename=\"\"\r\n"
+                + "Content-Type: application/octet-stream\r\n\r\n";
+
+        try {
+            outputStream.write(frontStr.getBytes());
+            Path pathForByte = Paths.get(path);
+            outputStream.write(Files.readAllBytes(pathForByte));
+            outputStream.write("\r\n-----------------------------3274614561247--\r\n".getBytes());
+            byte byteParts[] = outputStream.toByteArray( );
+            ServletInputStream i = new MockServletInputStream(byteParts);
+            when(mockReq.getInputStream()).thenReturn(i);
+            when(mockReq.getContentLength()).thenReturn(byteParts.length);
+            new MultipartRequest(mockReq, rootPath + File.separator +"img_copy", "utf-8");
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 	}
 	
 	
