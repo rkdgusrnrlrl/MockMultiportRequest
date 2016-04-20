@@ -34,7 +34,7 @@ public class TestMultiPartMock {
 
 		@Override
 		public int read() throws IOException {
-			return 0;
+			return pos+1 >= store.length ? -1 : (int)store[pos++];
 		}
 
 		@Override
@@ -142,9 +142,6 @@ public class TestMultiPartMock {
         String path = rootPath + File.separator +"img" + File.separator + "1.jpg";
         assertThat(path, is("C:\\Users\\khk\\IdeaProjects\\MockServeletInputStream\\img\\1.jpg"));
     }
-
-
-    //@todo : servletInputStream read 메서드 구현하기
     //servletInputStream read는 buffer 에 시작점 부터 끝점까지 담아줌
     @Test
     public void servletInputStream_read_메서드_구현하기(){
@@ -158,9 +155,6 @@ public class TestMultiPartMock {
         }
         assertThat(buf, is(new byte[]{1,2,3,4,5}));
     }
-    
-
-
 
 	//@todo : 파일 값을 담은 파라미터값 하나 만들어 주기
 	@Test
@@ -184,7 +178,7 @@ public class TestMultiPartMock {
             new MultipartRequest(mockReq, rootPath + File.separator +"img_copy", "utf-8");
 
         } catch (IOException e) {
-            e.printStackTrace();
+            fail(e.getMessage());
         }
 	}
 	
