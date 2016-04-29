@@ -7,13 +7,12 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
 
 import com.oreilly.servlet.MultipartRequest;
 import org.junit.After;
@@ -21,11 +20,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class TestMultiPartMock {
-	private final static  String RESOURSE_DIRECTORY_PATH = "D:\\workspace\\sono\\WebContent\\files\\gallery";
+    public static final String ROOT_PATH = System.getProperty("user.dir");
+    private final static  String RESOURSE_DIRECTORY_PATH = "D:\\workspace\\sono\\WebContent\\files\\gallery";
 	private final static int SIZE_LIMIT = 50 * 1024 * 1024 ;// 5메가까지 제한 넘어서면 예외발생
 	HttpServletRequest mockReq;
 
-	@Before
+    @Before
 	public void 처음_처리() {
 		mockReq = mock(HttpServletRequest.class);
 		when(mockReq.getContentType()).thenReturn("multipart/form-data; boundary=---------------------------3274614561247");
@@ -101,10 +101,10 @@ public class TestMultiPartMock {
 
     @Test
     public void 이미지_파일경로_찾기(){
-        String rootPath = System.getProperty("user.dir");
-        assertThat(rootPath, is("C:\\Users\\khk\\IdeaProjects\\MockServeletInputStream"));
+        
+        assertThat(ROOT_PATH, is("C:\\Users\\khk\\IdeaProjects\\MockServeletInputStream"));
 
-        String path = rootPath + File.separator +"img" + File.separator + "1.jpg";
+        String path = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
         assertThat(path, is("C:\\Users\\khk\\IdeaProjects\\MockServeletInputStream\\img\\1.jpg"));
     }
     
@@ -122,22 +122,19 @@ public class TestMultiPartMock {
         assertThat(buf, is(new byte[]{1,2,3,4,5}));
     }
 
-    //@todo : stream 으로 파일 저장하는 것 테스트
-    // 208째 줄 변수 size 49만 번 때 433 번줄 System.arraycopy(this.buf, this.pos, this.buf, 0, this.count - this.pos); 에서 ArrayIndexOutOfBoundsException 발생
-    // PartInputStream count 가 1이 많아서 발생하는 것으로 고려중 이나 확실치는 않음
     @Test
 	public void stream_으로_파일_저장하는_것_테스트(){
-        String rootPath = System.getProperty("user.dir");
-        String path = rootPath + File.separator +"img" + File.separator + "1.jpg";
-        String savePath = rootPath + File.separator +"img_copy" + File.separator + "1.jpg";
+        String ROOT_PATH = System.getProperty("user.dir");
+        String path = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
+        String savePath = ROOT_PATH + File.separator +"img_copy" + File.separator + "1.jpg";
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
 
         try {
             Path pathForByte = Paths.get(path);
             outputStream.write(Files.readAllBytes(pathForByte));
-            outputStream.write("\r\n-----------------------------3274614561247--\r\n".getBytes());
+            //outputStream.write("\r\n-----------------------------3274614561247--\r\n".getBytes());
             byte[] byteParts = outputStream.toByteArray( );
-            //assertThat(byteParts.length, is(0));
+			assertThat(byteParts.length, is(0));
             ServletInputStream i = new MockServletInputStream(byteParts);
             writeTo(new File(savePath),"1.jpg",i,"-----------------------------3274614561247");
         } catch (IOException e) {
@@ -183,14 +180,36 @@ public class TestMultiPartMock {
 
 		return size;
 	}
+	@Test
+	public void 바이트를_인트로_캐스팅(){
+		int i = 255;
+		byte b = (byte) i;
+		byte zero = 0;
+		assertEquals(zero,b);
+	}
 
-	//@todo : 파일 값을 담은 파라미터값 하나 만들어 주기
-	//현재 parse 해서 파일로 저장되는 부분이 문제로 파악
-    //\r\n 을 한번 더 써서 그런게 아닐까 추측
+	public int toInt(byte b) {
+		return (-(b-127)/128)*256+b;
+	}
+    //int -> byte => 0 -> 0 ... 127 -> 127, 128 -> -128 ... 255 = -1
+	@Test
+	public void read_함수를_위한_로직_테스트(){
+		byte b = 0;
+		assertEquals(0, toInt(b));
+		b = 127;
+		assertEquals(127, toInt(b));
+		b = -128;
+		assertEquals(128, toInt(b));
+		b = -127;
+		assertEquals(129, toInt(b));
+		b = -1;
+		assertEquals(255, toInt(b));
+	}
+
 	@Test
 	public void 파일_값을_담은_파라미터값_하나_만들어_주기(){
-        String rootPath = System.getProperty("user.dir");
-        String path = rootPath + File.separator +"img" + File.separator + "1.jpg";
+        String ROOT_PATH = System.getProperty("user.dir");
+        String path = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
         String frontStr = "-----------------------------3274614561247\r\n"
                 + "Content-Disposition: form-data; name=\"file01\"; filename=\"1.jpg\"\r\n"
@@ -205,7 +224,7 @@ public class TestMultiPartMock {
             ServletInputStream i = new MockServletInputStream(byteParts);
             when(mockReq.getInputStream()).thenReturn(i);
             when(mockReq.getContentLength()).thenReturn(byteParts.length);
-            new MultipartRequest(mockReq, rootPath + File.separator +"img_copy", "utf-8");
+            new MultipartRequest(mockReq, ROOT_PATH + File.separator +"img_copy", "utf-8");
 
         } catch (IOException e) {
             fail(e.getMessage());
@@ -338,14 +357,14 @@ public class TestMultiPartMock {
 	    byte[] buf = new byte[8 * 1024];
 
 	    do {
-	      result = in.readLine(buf, 0, buf.length);  // does +=
-	      if (result != -1) {
-	        sbuf.append(new String(buf, 0, result, encoding));
-	      }
+            result = in.readLine(buf, 0, buf.length);  // does +=
+	        if (result != -1) {
+	            sbuf.append(new String(buf, 0, result, encoding));
+	        }
 	    } while (result == buf.length);  // loop only if the buffer was filled
 
 	    if (sbuf.length() == 0) {
-	      return null;  // nothing read, must be at the end of stream
+	        return null;  // nothing read, must be at the end of stream
 	    }
 
 	    // Cut off the trailing \n or \r\n
@@ -353,28 +372,217 @@ public class TestMultiPartMock {
 	    // Thanks to Luke Blaikie for helping make this work with \n
 	    int len = sbuf.length();
 	    if (len >= 2 && sbuf.charAt(len - 2) == '\r') {
-	      sbuf.setLength(len - 2);  // cut \r\n
+	        sbuf.setLength(len - 2);  // cut \r\n
 	    }
 	    else if (len >= 1 && sbuf.charAt(len - 1) == '\n') {
-	      sbuf.setLength(len - 1);  // cut \n
+	        sbuf.setLength(len - 1);  // cut \n
 	    }
 	    return sbuf.toString();
-	  }
+    }
 
-	@After
+    @Test
+    public void 파일_같은지_체크하는_방법(){
+        String ROOT_PATH = System.getProperty("user.dir");
+        String filePath = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
+        String copyFilePath = ROOT_PATH + File.separator +"img_copy" + File.separator + "1.jpg";
+
+        Path pathForByte = Paths.get(filePath);
+        Path capyPathForByte = Paths.get(copyFilePath);
+        try {
+            byte[] bfile = Files.readAllBytes(pathForByte);
+            byte[] bcopyFile = Files.readAllBytes(capyPathForByte);
+            assertThat(bfile.length, is(bcopyFile.length));
+
+            for (int i = 0; i < bfile.length; i++) {
+                assertEquals(bfile[i], bcopyFile[i]);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
+    private boolean isSameFile(String filePath, String copyFilePath) {
+        Path pathForByte = Paths.get(filePath);
+        Path capyPathForByte = Paths.get(copyFilePath);
+        try {
+            byte[] bfile = Files.readAllBytes(pathForByte);
+            byte[] bcopyFile = Files.readAllBytes(capyPathForByte);
+
+            if(bfile.length != bcopyFile.length) return false;
+
+            for (int i = 0; i < bfile.length; i++) {
+                if (bfile[i] != bcopyFile[i]) return false;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return true;
+    }
+    @Test
+    public void String_파리미터_하나_Part_에_파리미터_및_파일을_담아주기(){
+        String paramName = "record_no";
+        String value = "00001";
+
+        ArrayList<Map<String, Object>> parts = new ArrayList<Map<String, Object>>();
+        Map<String, Object> part = new HashMap<String, Object>();
+        part.put("name", paramName);
+        part.put("type", "string");
+        part.put("value", value);
+        parts.add(part);
+        byte[] b = new byte[0];
+        try {
+            b = makeByte(parts);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        ServletInputStream in = new MockServletInputStream(b);
+        try {
+            when(mockReq.getInputStream()).thenReturn(in);
+            when(mockReq.getContentLength()).thenReturn(b.length);
+            MultipartRequest multipartRequest = new MultipartRequest(mockReq, ROOT_PATH + File.separator + "img_copy", "utf-8");
+
+
+            assertThat(value, is(multipartRequest.getParameter(paramName)));
+
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    @Test
+    public void String_파리미터_여러개_Part_에_파리미터_및_파일을_담아주기(){
+        String[] paramNames = new String[] {"record_no","title","contents"};
+        String paramNameForFile = "up_file";
+
+        String[] values = new String[] {"00001","제목입니다.","안녕하세요\n내용부입니다."};
+        String filePath = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
+
+        ArrayList<Map<String, Object>> parts = new ArrayList<Map<String, Object>>();
+
+        for (int i = 0; i < paramNames.length; i++) {
+            Map<String, Object> part = new HashMap<String, Object>();
+            part.put("name", paramNames[i]);
+            part.put("type", "string");
+            part.put("value", values[i]);
+            parts.add(part);
+        }
+
+        byte[] b = new byte[0];
+        try {
+            b = makeByte(parts);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        ServletInputStream in = new MockServletInputStream(b);
+        try {
+            when(mockReq.getInputStream()).thenReturn(in);
+            when(mockReq.getContentLength()).thenReturn(b.length);
+            MultipartRequest multipartRequest = new MultipartRequest(mockReq, ROOT_PATH + File.separator + "img_copy", "utf-8");
+
+            for (int i = 0; i < paramNames.length; i++) {
+                assertThat(values[i], is(multipartRequest.getParameter(paramNames[i])));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    //@todo : Part 에 파리미터 및 파일을 담아주기
+    @Test
+    public void Part_에_파리미터_및_파일을_담아주기(){
+        String[] paramNames = new String[] {"record_no","title","contents"};
+        String paramNameForFile = "up_file";
+
+        String[] values = new String[] {"00001","제목입니다.","안녕하세요\n내용부입니다."};
+        String filePath = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
+
+        ArrayList<Map<String, Object>> parts = new ArrayList<Map<String, Object>>();
+
+        for (int i = 0; i < paramNames.length; i++) {
+            Map<String, Object> part = new HashMap<String, Object>();
+            part.put("name", paramNames[i]);
+            part.put("type", "string");
+            part.put("value", values[i]);
+            parts.add(part);
+        }
+
+        Map<String, Object> part = new HashMap<String, Object>();
+        part.put("name", paramNameForFile);
+        part.put("fileName", "1.jpg");
+        part.put("type", "file");
+        part.put("value", filePath);
+        parts.add(part);
+
+        byte[] b = new byte[0];
+        try {
+            b = makeByte(parts);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        ServletInputStream in = new MockServletInputStream(b);
+        try {
+            when(mockReq.getInputStream()).thenReturn(in);
+            when(mockReq.getContentLength()).thenReturn(b.length);
+            MultipartRequest multipartRequest = new MultipartRequest(mockReq, ROOT_PATH + File.separator + "img_copy", "utf-8");
+
+            for (int i = 0; i < paramNames.length; i++) {
+                assertThat(values[i], is(multipartRequest.getParameter(paramNames[i])));
+            }
+            String copyFilePath = ROOT_PATH + File.separator +"img_copy" + File.separator + "1.jpg";
+            assertTrue(isSameFile(filePath, copyFilePath));
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private byte[] makeByte(ArrayList<Map<String, Object>> parts) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
+        int size = parts.size();
+        for(Map<String, Object> part:parts) {
+            if (part.get("type").equals("string")) {
+                String paramStr =
+                        "-----------------------------3274614561247\r\n"
+                                + "Content-Disposition: form-data; name=\"" + (String) part.get("name") + "\"\r\n\r\n"
+                                + (String)part.get("value")+"\r\n";
+                outputStream.write(paramStr.getBytes());
+            } else if (part.get("type").equals("file")) {
+                String frontStr = "-----------------------------3274614561247\r\n"
+                        + "Content-Disposition: form-data; name=\"" + (String) part.get("name") + "\"; "
+                        + "filename=\"" + (String) part.get("name") + "\"\r\n"
+                        + "Content-Type: application/octet-stream\r\n\r\n";
+
+
+                outputStream.write(frontStr.getBytes());
+                Path pathForByte = Paths.get((String) part.get("value"));
+                outputStream.write(Files.readAllBytes(pathForByte));
+            }
+
+            if (--size == 0) {
+                outputStream.write("-----------------------------3274614561247--\r\n".getBytes());
+            } else {
+                outputStream.write("-----------------------------3274614561247\r\n".getBytes());
+            }
+
+        }
+        return outputStream.toByteArray();
+    }
+
+    @After
 	public void 마지막_처리(){
 	}
 	
 	//@todo : 파라미터 값을 MultiPartRequest 라이브러리로 추출할 수 있어야함
 	//@todo : 파라미터 값을 FileUpload 라이브러리로 추출할 수 있어야함
-	/*
-	 * try {
-			new MultipartRequest(mockReq, RESOURSE_DIRECTORY_PATH, SIZE_LIMIT);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	 * */
-	
+
+
+
 	public class MockServletInputStream extends ServletInputStream {
 		byte[] store;
 		int pos;
@@ -384,9 +592,20 @@ public class TestMultiPartMock {
 			pos = 0;
 		}
 
+		private int toInt(byte b) {
+			return (-(b-127)/128)*256+b;
+		}
+
+		//read는 byte 값을 int 변형 하여 리턴함
+		//즉 음수의 경우 양수인 int 값으로 바뀜
+		//int -> byte => 0 -> 0 ... 127 -> 127, 128 -> -128 ... 255 = -1
 		@Override
 		public int read() throws IOException {
-			return pos+1 >= store.length ? -1 : (int)store[pos++];
+			if (pos+1 >= store.length) {
+				return store.length;
+			} else {
+				return toInt(store[pos++]);
+			}
 		}
 
 		@Override
@@ -399,11 +618,12 @@ public class TestMultiPartMock {
 					if(store[pos+i+1]=="\n".getBytes()[0]){
 						i++;
 						b[off+i] = store[pos+i];
+						i++;
 						break;
 					}
 				}
 			}
-			pos += ++i;
+			pos += i;
 			return i;
 		}
 	}
