@@ -7,7 +7,6 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -99,6 +98,106 @@ public class TestMultiPartMock {
 		assertThat(params.get("record_id"), is("123"));
 	}
 
+	/**
+	 * multiportrequest 에서 파라미터 값을 추출해 맵으로 만들어 리턴한다.
+	 * @param request request
+	 * @param boundary : 추출될 바운더리
+	 */
+	public Map<String, String> makeReqeust(HttpServletRequest request, String boundary){
+		System.out.println("makeReqeust start ");
+		Map<String, String> parameters = new HashMap<String, String>();
+		try {
+			ServletInputStream in = request.getInputStream();
+
+
+
+			System.out.println("boundary "+boundary);
+			String line = "";
+			do {
+				line = readLine(in, "utf-8");
+				System.out.println("find frist line "+line);
+				if (line == null) {
+					throw new IOException("Corrupt form data: premature ending");
+				}
+				// See if this line is the boundary, and if so break
+				if (line.startsWith(boundary)) {
+					break;  // success
+				}
+			} while (true);
+			line = readLine(in, "utf-8");
+			while (line!=null
+					&& !line.equals(boundary+"--")){
+				//head 추출 및 파싱
+				//파싱 하는 로직
+				String Head2Line = line.toLowerCase() + "; " +readLine(in, "utf-8").toLowerCase();
+				System.out.println("Head2Line "+Head2Line);
+				String[] tempHead = Head2Line.split(";");
+				Map<String, String> header = new HashMap<String, String>();
+				for (String head:tempHead) {
+					head = head.trim();
+					if (!head.equals("")) {
+						System.out.println("head "+head);
+						String splitChar = "";
+						if (head.contains("=\"")) {
+							head = head.replaceAll("\"", "");
+							splitChar = "=";
+						} else if (head.contains(": ")) {
+							splitChar = ": ";
+						}
+						String[] keyAndValue = head.split(splitChar);
+						if (keyAndValue.length > 1){
+							String key = keyAndValue[0];
+							String value = keyAndValue[1];
+							header.put(key, value);
+						}
+
+					}
+				}
+
+
+				if (header.containsKey("content-type")) {
+
+					/*
+					파일로 저정하는 로직
+					File file = new File(savePath+File.pathSeparator+"test_img0101.jpg");
+					OutputStream fileOut = new BufferedOutputStream(new FileOutputStream(file));
+
+				    long size=0;
+				    int read;
+				    byte[] buf = new byte[8 * 1024];
+				    while((read = in.read(buf)) != -1) {
+				    	fileOut.write(buf, 0, read);
+				    }*/
+
+					do {
+						line = readLine(in, "utf-8");
+						System.out.println("after line "+line);
+					} while (!line.contains(boundary));
+				} else {
+					do {
+						line = readLine(in, "utf-8");
+					} while (line.trim().equals(""));
+					//여러행으로 이루어진 value 값을 파싱하기 위해 for 문을 돌림
+					do {
+						String temp = readLine(in, "utf-8");
+						if (temp.startsWith(boundary)) break;
+						line += "\n"+temp;
+					} while (true);
+					String val = line;
+					parameters.put(header.get("name"), val);
+					line = readLine(in, "utf-8");
+				}
+
+			}
+
+		} catch (IOException e ){
+			e.printStackTrace();
+		} catch (NullPointerException e) {
+			e.printStackTrace();
+		}
+		return parameters;
+	}
+
     @Test
     public void 이미지_파일경로_찾기(){
         
@@ -121,26 +220,6 @@ public class TestMultiPartMock {
         }
         assertThat(buf, is(new byte[]{1,2,3,4,5}));
     }
-
-    @Test
-	public void stream_으로_파일_저장하는_것_테스트(){
-        String ROOT_PATH = System.getProperty("user.dir");
-        String path = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
-        String savePath = ROOT_PATH + File.separator +"img_copy" + File.separator + "1.jpg";
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
-
-        try {
-            Path pathForByte = Paths.get(path);
-            outputStream.write(Files.readAllBytes(pathForByte));
-            //outputStream.write("\r\n-----------------------------3274614561247--\r\n".getBytes());
-            byte[] byteParts = outputStream.toByteArray( );
-			assertThat(byteParts.length, is(0));
-            ServletInputStream i = new MockServletInputStream(byteParts);
-            writeTo(new File(savePath),"1.jpg",i,"-----------------------------3274614561247");
-        } catch (IOException e) {
-            fail(e.getMessage());
-        }
-	}
 
 	public long writeTo(File fileOrDirectory, String fileName, ServletInputStream in, String boundary) throws IOException {
 		long written = 0L;
@@ -179,13 +258,6 @@ public class TestMultiPartMock {
 		}
 
 		return size;
-	}
-	@Test
-	public void 바이트를_인트로_캐스팅(){
-		int i = 255;
-		byte b = (byte) i;
-		byte zero = 0;
-		assertEquals(zero,b);
 	}
 
 	public int toInt(byte b) {
@@ -243,105 +315,7 @@ public class TestMultiPartMock {
 	    return "--"+boundary;
 	}
 	
-	/**
-	 * multiportrequest 에서 파라미터 값을 추출해 맵으로 만들어 리턴한다.
-	 * @param request request
-	 * @param boundary : 추출될 바운더리
-	 */
-	public Map<String, String> makeReqeust(HttpServletRequest request, String boundary){
-		System.out.println("makeReqeust start ");
-		Map<String, String> parameters = new HashMap<String, String>();
-		try {
-			ServletInputStream in = request.getInputStream();
 
-
-
-		  	System.out.println("boundary "+boundary);
-			String line = "";
-			do {
-			      line = readLine(in, "utf-8");
-				  System.out.println("find frist line "+line);
-			      if (line == null) {
-			        throw new IOException("Corrupt form data: premature ending");
-			      }
-			      // See if this line is the boundary, and if so break
-			      if (line.startsWith(boundary)) {
-			        break;  // success
-			      }
-			    } while (true);
-				line = readLine(in, "utf-8");
-			 while (line!=null
-					 && !line.equals(boundary+"--")){
-				//head 추출 및 파싱
-				//파싱 하는 로직
-				String Head2Line = line.toLowerCase() + "; " +readLine(in, "utf-8").toLowerCase();
-				System.out.println("Head2Line "+Head2Line);
-				String[] tempHead = Head2Line.split(";");
-				Map<String, String> header = new HashMap<String, String>();
-				for (String head:tempHead) {
-					head = head.trim();
-					if (!head.equals("")) {
-						System.out.println("head "+head);
-						String splitChar = "";
-						if (head.contains("=\"")) {
-							head = head.replaceAll("\"", "");
-							splitChar = "=";
-						} else if (head.contains(": ")) {
-							splitChar = ": ";
-						}
-						String[] keyAndValue = head.split(splitChar);
-						if (keyAndValue.length > 1){
-							String key = keyAndValue[0];
-							String value = keyAndValue[1];
-							header.put(key, value);
-						}
-
-					}
-				}
-
-
-				if (header.containsKey("content-type")) {
-
-					/*
-					파일로 저정하는 로직
-					File file = new File(savePath+File.pathSeparator+"test_img0101.jpg");
-					OutputStream fileOut = new BufferedOutputStream(new FileOutputStream(file));
-
-				    long size=0;
-				    int read;
-				    byte[] buf = new byte[8 * 1024];
-				    while((read = in.read(buf)) != -1) {
-				    	fileOut.write(buf, 0, read);
-				    }*/
-
-					do {
-	        			line = readLine(in, "utf-8");
-	        			System.out.println("after line "+line);
-	        		} while (!line.contains(boundary));
-				} else {
-					do {
-						line = readLine(in, "utf-8");
-					} while (line.trim().equals(""));
-					//여러행으로 이루어진 value 값을 파싱하기 위해 for 문을 돌림
-					do {
-						String temp = readLine(in, "utf-8");
-						if (temp.startsWith(boundary)) break;
-						line += "\n"+temp;
-					} while (true);
-					String val = line;
-					parameters.put(header.get("name"), val);
-					line = readLine(in, "utf-8");
-				}
-
-			 }
-
-		} catch (IOException e ){
-			e.printStackTrace();
-		} catch (NullPointerException e) {
-            e.printStackTrace();
-        }
-		return parameters;
-	}
 	
 	/**
 	 * MultiPartRequest 에 소스에서 추출한 메서드 내가 조금 수정하였다.
@@ -403,7 +377,7 @@ public class TestMultiPartMock {
 
     }
 
-    private boolean isSameFile(String filePath, String copyFilePath) {
+	private boolean isSameFile(String filePath, String copyFilePath) {
         Path pathForByte = Paths.get(filePath);
         Path capyPathForByte = Paths.get(copyFilePath);
         try {
@@ -420,20 +394,17 @@ public class TestMultiPartMock {
         }
         return true;
     }
+
     @Test
     public void String_파리미터_하나_Part_에_파리미터_및_파일을_담아주기(){
         String paramName = "record_no";
         String value = "00001";
 
-        ArrayList<Map<String, Object>> parts = new ArrayList<Map<String, Object>>();
-        Map<String, Object> part = new HashMap<String, Object>();
-        part.put("name", paramName);
-        part.put("type", "string");
-        part.put("value", value);
-        parts.add(part);
+        Parts parts = new Parts();
+		parts.addPart(paramName, value);
         byte[] b = new byte[0];
         try {
-            b = makeByte(parts);
+            b = parts.makeByte();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -460,19 +431,15 @@ public class TestMultiPartMock {
         String[] values = new String[] {"00001","제목입니다.","안녕하세요\n내용부입니다."};
         String filePath = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
 
-        ArrayList<Map<String, Object>> parts = new ArrayList<Map<String, Object>>();
+		Parts parts = new Parts();
 
-        for (int i = 0; i < paramNames.length; i++) {
-            Map<String, Object> part = new HashMap<String, Object>();
-            part.put("name", paramNames[i]);
-            part.put("type", "string");
-            part.put("value", values[i]);
-            parts.add(part);
-        }
+		for (int i = 0; i < paramNames.length; i++) {
+			parts.addPart(paramNames[i], values[i]);
+		}
 
         byte[] b = new byte[0];
         try {
-            b = makeByte(parts);
+            b = parts.makeByte();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -491,36 +458,27 @@ public class TestMultiPartMock {
         }
     }
 
-
-    //@todo : Part 에 파리미터 및 파일을 담아주기
     @Test
     public void Part_에_파리미터_및_파일을_담아주기(){
         String[] paramNames = new String[] {"record_no","title","contents"};
         String paramNameForFile = "up_file";
 
-        String[] values = new String[] {"00001","제목입니다.","안녕하세요\n내용부입니다."};
-        String filePath = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
 
-        ArrayList<Map<String, Object>> parts = new ArrayList<Map<String, Object>>();
+		Parts parts = new Parts();
+
+		String[] values = new String[] {"00001","제목입니다.","안녕하세요\n내용부입니다."};
+
 
         for (int i = 0; i < paramNames.length; i++) {
-            Map<String, Object> part = new HashMap<String, Object>();
-            part.put("name", paramNames[i]);
-            part.put("type", "string");
-            part.put("value", values[i]);
-            parts.add(part);
+			parts.addPart(paramNames[i], values[i]);
         }
 
-        Map<String, Object> part = new HashMap<String, Object>();
-        part.put("name", paramNameForFile);
-        part.put("fileName", "1.jpg");
-        part.put("type", "file");
-        part.put("value", filePath);
-        parts.add(part);
+		String filePath = ROOT_PATH + File.separator +"img" + File.separator + "1.jpg";
+		parts.addFilePart(paramNameForFile, filePath);
 
         byte[] b = new byte[0];
         try {
-            b = makeByte(parts);
+            b = parts.makeByte();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -534,54 +492,20 @@ public class TestMultiPartMock {
             for (int i = 0; i < paramNames.length; i++) {
                 assertThat(values[i], is(multipartRequest.getParameter(paramNames[i])));
             }
+
             String copyFilePath = ROOT_PATH + File.separator +"img_copy" + File.separator + "1.jpg";
             assertTrue(isSameFile(filePath, copyFilePath));
 
         } catch (IOException e) {
-            e.printStackTrace();
+           fail();
         }
     }
 
-    private byte[] makeByte(ArrayList<Map<String, Object>> parts) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
-        int size = parts.size();
-        for(Map<String, Object> part:parts) {
-            if (part.get("type").equals("string")) {
-                String paramStr =
-                        "-----------------------------3274614561247\r\n"
-                                + "Content-Disposition: form-data; name=\"" + (String) part.get("name") + "\"\r\n\r\n"
-                                + (String)part.get("value")+"\r\n";
-                outputStream.write(paramStr.getBytes());
-            } else if (part.get("type").equals("file")) {
-                String frontStr = "-----------------------------3274614561247\r\n"
-                        + "Content-Disposition: form-data; name=\"" + (String) part.get("name") + "\"; "
-                        + "filename=\"" + (String) part.get("name") + "\"\r\n"
-                        + "Content-Type: application/octet-stream\r\n\r\n";
 
-
-                outputStream.write(frontStr.getBytes());
-                Path pathForByte = Paths.get((String) part.get("value"));
-                outputStream.write(Files.readAllBytes(pathForByte));
-            }
-
-            if (--size == 0) {
-                outputStream.write("-----------------------------3274614561247--\r\n".getBytes());
-            } else {
-                outputStream.write("-----------------------------3274614561247\r\n".getBytes());
-            }
-
-        }
-        return outputStream.toByteArray();
-    }
 
     @After
 	public void 마지막_처리(){
 	}
-	
-	//@todo : 파라미터 값을 MultiPartRequest 라이브러리로 추출할 수 있어야함
-	//@todo : 파라미터 값을 FileUpload 라이브러리로 추출할 수 있어야함
-
-
 
 	public class MockServletInputStream extends ServletInputStream {
 		byte[] store;
@@ -601,151 +525,17 @@ public class TestMultiPartMock {
 		//int -> byte => 0 -> 0 ... 127 -> 127, 128 -> -128 ... 255 = -1
 		@Override
 		public int read() throws IOException {
-			if (pos+1 >= store.length) {
-				return store.length;
+			if (pos >= store.length) {
+				return -1;
 			} else {
 				return toInt(store[pos++]);
 			}
 		}
 
-		@Override
-		public int readLine(byte[] b, int off, int len) throws IOException {
-			int read = Math.min(store.length - pos, len);
-			int i = -1;
-			while (++i < read ) {
-				b[off+i] = store[pos+i];
-				if(store[pos+i]=="\r".getBytes()[0]){
-					if(store[pos+i+1]=="\n".getBytes()[0]){
-						i++;
-						b[off+i] = store[pos+i];
-						i++;
-						break;
-					}
-				}
-			}
-			pos += i;
-			return i;
-		}
+
 	}
 	
 
 }
 
 
-class PartInputStream extends FilterInputStream {
-	private String boundary;
-	private byte[] buf = new byte[65536];
-	private int count;
-	private int pos;
-	private boolean eof;
-
-	PartInputStream(ServletInputStream in, String boundary) throws IOException {
-		super(in);
-		this.boundary = boundary;
-	}
-
-	private void fill() throws IOException {
-		if(!this.eof) {
-			if(this.count > 0) {
-				if(this.count - this.pos != 2) {
-					throw new IllegalStateException("fill() detected illegal buffer state");
-				}
-
-				System.arraycopy(this.buf, this.pos, this.buf, 0, this.count - this.pos);
-				this.count -= this.pos;
-				this.pos = 0;
-			}
-
-			boolean read = false;
-			int boundaryLength = this.boundary.length();
-
-			int var5;
-			for(int maxRead = this.buf.length - boundaryLength - 2; this.count < maxRead; this.count += var5) {
-				var5 = ((ServletInputStream)super.in).readLine(this.buf, this.count, this.buf.length - this.count);
-				if(var5 == -1) {
-					throw new IOException("unexpected end of part");
-				}
-
-				if(var5 >= boundaryLength) {
-					this.eof = true;
-
-					for(int i = 0; i < boundaryLength; ++i) {
-						if(this.boundary.charAt(i) != this.buf[this.count + i]) {
-							this.eof = false;
-							break;
-						}
-					}
-
-					if(this.eof) {
-						break;
-					}
-				}
-			}
-
-		}
-	}
-
-	public int read() throws IOException {
-		if(this.count - this.pos <= 2) {
-			this.fill();
-			if(this.count - this.pos <= 2) {
-				return -1;
-			}
-		}
-
-		return this.buf[this.pos++] & 255;
-	}
-
-	public int read(byte[] b) throws IOException {
-		return this.read(b, 0, b.length);
-	}
-
-	public int read(byte[] b, int off, int len) throws IOException {
-		byte total = 0;
-		if(len == 0) {
-			return 0;
-		} else {
-			int avail = this.count - this.pos - 2;
-			if(avail <= 0) {
-				this.fill();
-				avail = this.count - this.pos - 2;
-				if(avail <= 0) {
-					return -1;
-				}
-			}
-
-			int copy = Math.min(len, avail);
-			System.arraycopy(this.buf, this.pos, b, off, copy);
-			this.pos += copy;
-
-			int total1;
-			for(total1 = total + copy; total1 < len; total1 += copy) {
-				this.fill();
-				avail = this.count - this.pos - 2;
-				if(avail <= 0) {
-					return total1;
-				}
-
-				copy = Math.min(len - total1, avail);
-				System.arraycopy(this.buf, this.pos, b, off + total1, copy);
-				this.pos += copy;
-			}
-
-			return total1;
-		}
-	}
-
-	public int available() throws IOException {
-		int avail = this.count - this.pos - 2 + super.in.available();
-		return avail < 0?0:avail;
-	}
-
-	public void close() throws IOException {
-		if(!this.eof) {
-			while(this.read(this.buf, 0, this.buf.length) != -1) {
-				;
-			}
-		}
-
-	}
-}
