@@ -260,23 +260,7 @@ public class TestMultiPartMock {
 		return size;
 	}
 
-	public int toInt(byte b) {
-		return (-(b-127)/128)*256+b;
-	}
-    //int -> byte => 0 -> 0 ... 127 -> 127, 128 -> -128 ... 255 = -1
-	@Test
-	public void read_함수를_위한_로직_테스트(){
-		byte b = 0;
-		assertEquals(0, toInt(b));
-		b = 127;
-		assertEquals(127, toInt(b));
-		b = -128;
-		assertEquals(128, toInt(b));
-		b = -127;
-		assertEquals(129, toInt(b));
-		b = -1;
-		assertEquals(255, toInt(b));
-	}
+
 
 	@Test
 	public void 파일_값을_담은_파라미터값_하나_만들어_주기(){
@@ -500,8 +484,6 @@ public class TestMultiPartMock {
            fail();
         }
     }
-
-
 
     @After
 	public void 마지막_처리(){
